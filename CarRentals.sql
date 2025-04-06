@@ -100,11 +100,11 @@ INSERT INTO Rezerwacje (id_klienta, nr_rejestracyjny, data_rozpoczecia, data_zak
 
 -- Wstawianie rekordów do tabeli Platnosci
 INSERT INTO Platnosci (nr_rezerwacji, kwota, data_platnosci, status, metoda) VALUES
-                                                                                 (11, 500.00, '2024-03-01', 'Oplacone', 'Karta'),
-                                                                                 (12, 600.00, '2024-03-05', 'Oczekujace', 'Gotowka'),
-                                                                                 (13, 750.00, '2024-03-07', 'Oplacone', 'Przelew'),
-                                                                                 (14, 900.00, '2024-03-10', 'Oczekujace', 'Karta'),
-                                                                                 (15, 400.00, '2024-03-15', 'Oczekujace', 'Gotowka');
+                                                                                 (1, 500.00, '2024-03-01', 'Oplacone', 'Karta'),
+                                                                                 (2, 600.00, '2024-03-05', 'Oczekujace', 'Gotowka'),
+                                                                                 (3, 750.00, '2024-03-07', 'Oplacone', 'Przelew'),
+                                                                                 (4, 900.00, '2024-03-10', 'Oczekujace', 'Karta'),
+                                                                                 (5, 400.00, '2024-03-15', 'Oczekujace', 'Gotowka');
 
 
 -- 3) SKRYPTY
@@ -189,15 +189,15 @@ BEGIN
     DECLARE srednia DECIMAL(10,2);
 
     -- Pobranie średniej ceny dla podanego typu pojazdu
-SELECT AVG(cena) INTO srednia FROM Pojazdy WHERE typ = typ_pojazdu;
+    SELECT AVG(cena) INTO srednia FROM Pojazdy WHERE typ = typ_pojazdu;
 -- Porównanie ceny wynajmu pojazdu z średnią dla danego typu
-IF kwota < srednia THEN
+    IF kwota < srednia THEN
         RETURN 'Taniej niż średnia';
     ELSEIF kwota = srednia THEN
         RETURN 'Cena na poziomie średniej';
-ELSE
+    ELSE
         RETURN 'Drożej niż średnia';
-END IF;
+    END IF;
 
 END $$
 DELIMITER ;
@@ -213,12 +213,12 @@ CREATE FUNCTION dostepnosc_pojazdu(numer int)
 BEGIN
     DECLARE status_pojazdu VARCHAR(20);
 
-SELECT status INTO status_pojazdu FROM Pojazdy WHERE numer = nr_rejestracyjny;
-IF status_pojazdu = 'Dostepny' THEN
+    SELECT status INTO status_pojazdu FROM Pojazdy WHERE numer = nr_rejestracyjny;
+    IF status_pojazdu = 'Dostepny' THEN
         RETURN 'Dostepny';
     ELSEIF status_pojazdu = 'Wypozyczony' THEN
         RETURN 'Niedostepny';
-END IF;
+    END IF;
 
 END $$
 DELIMITER ;
@@ -237,37 +237,37 @@ BEGIN
     DECLARE cena_dzienna INT;
     DECLARE rezerwacja_niedostepna INT;
 
-SELECT cena INTO cena_dzienna FROM Pojazdy WHERE nr_rejestracyjny = nr_poj;
+    SELECT cena INTO cena_dzienna FROM Pojazdy WHERE nr_rejestracyjny = nr_poj;
 
-IF cena_dzienna IS NULL THEN
+    IF cena_dzienna IS NULL THEN
         RETURN -1; -- Wartość -1 oznacza błąd (np. brak pojazdu w bazie)
-END IF;
+    END IF;
 
     -- Sprawdzenie, czy pojazd jest dostępny w wybranym okresie
-SELECT COUNT(*) INTO rezerwacja_niedostepna
-FROM Rezerwacje
-WHERE nr_rejestracyjny = nr_poj
-  AND (
-    (data_rozp BETWEEN data_rozpoczecia AND data_zakonczenia)
-        OR
-    (data_zak BETWEEN data_rozpoczecia AND data_zakonczenia)
-        OR
-    (data_rozp <= data_rozpoczecia AND data_zak >= data_zakonczenia)
-    );
+    SELECT COUNT(*) INTO rezerwacja_niedostepna
+    FROM Rezerwacje
+    WHERE nr_rejestracyjny = nr_poj
+      AND (
+        (data_rozp BETWEEN data_rozpoczecia AND data_zakonczenia)
+            OR
+        (data_zak BETWEEN data_rozpoczecia AND data_zakonczenia)
+            OR
+        (data_rozp <= data_rozpoczecia AND data_zak >= data_zakonczenia)
+        );
 
-IF rezerwacja_niedostepna > 0 THEN
+    IF rezerwacja_niedostepna > 0 THEN
         RETURN -2; -- Wartość -2 oznacza brak dostępności pojazdu
-END IF;
+    END IF;
 
     -- Obliczenie liczby dni
     SET ilosc = DATEDIFF(data_zak, data_rozp) + 1;
 
     IF ilosc <= 0 THEN
         RETURN -3; -- Wartość -3 oznacza błąd dat
-END IF;
+    END IF;
 
     -- Obliczenie całkowitej kwoty
-RETURN cena_dzienna * ilosc;
+    RETURN cena_dzienna * ilosc;
 
 END $$
 
@@ -303,26 +303,26 @@ BEGIN
         VALUES (id_k, nr_poj, data_rozp, data_zak);
 
         -- Pobranie numeru nowo utworzonej rezerwacji
-SELECT nr_rezerwacji INTO nr_rez
-FROM Rezerwacje
-WHERE nr_rejestracyjny = nr_poj
-  AND id_klienta = id_k
-  AND data_rozpoczecia = data_rozp
-  AND data_zakonczenia = data_zak;
+        SELECT nr_rezerwacji INTO nr_rez
+        FROM Rezerwacje
+        WHERE nr_rejestracyjny = nr_poj
+          AND id_klienta = id_k
+          AND data_rozpoczecia = data_rozp
+          AND data_zakonczenia = data_zak;
 
--- Tworzenie płatności dla tej rezerwacji
-IF metoda_platnosci = 'Gotowka' THEN
+        -- Tworzenie płatności dla tej rezerwacji
+        IF metoda_platnosci = 'Gotowka' THEN
             INSERT INTO Platnosci (nr_rezerwacji, kwota, data_platnosci, status, metoda)
-SELECT nr_rez, kwota,data_rozp, 'Oczekujace', metoda_platnosci;
-ELSE
+            SELECT nr_rez, kwota,data_rozp, 'Oczekujace', metoda_platnosci;
+        ELSE
             INSERT INTO Platnosci (nr_rezerwacji, kwota, data_platnosci, status, metoda)
-SELECT nr_rez, kwota,CURDATE(), 'Oczekujace', metoda_platnosci;
+            SELECT nr_rez, kwota,CURDATE(), 'Oczekujace', metoda_platnosci;
 
-END IF;
+        END IF;
 
         -- Potwierdzenie
-RETURN 'Rezerwacja oraz płatność została wygenerowana.';
-ELSE
+        RETURN 'Rezerwacja oraz płatność została wygenerowana.';
+    ELSE
         -- Zwracamy odpowiedni status w przypadku błędu
         IF kwota = -1 THEN
             RETURN 'Błąd: Pojazd nie istnieje';
@@ -330,8 +330,8 @@ ELSE
             RETURN 'Błąd: Pojazd niedostępny w wybranym terminie';
         ELSEIF kwota = -3 THEN
             RETURN 'Błąd: Data zakończenia musi być późniejsza niż data rozpoczęcia';
-END IF;
-END IF;
+        END IF;
+    END IF;
 
 END $$
 
@@ -350,22 +350,22 @@ INSERT INTO Rezerwacje (id_klienta, nr_rejestracyjny, data_rozpoczecia, data_zak
 
 
 INSERT INTO Platnosci (nr_rezerwacji, kwota, data_platnosci, status, metoda) VALUES
-                                                                                 (16, 200.00, '2025-03-10', 'Oczekujace', 'Karta'),
-                                                                                 (17, 250.00, '2025-03-11', 'Oczekujace', 'Gotowka'),
-                                                                                 (18, 300.00, '2025-03-12', 'Oczekujace', 'Przelew'),
-                                                                                 (19, 350.00, '2025-03-10', 'Oczekujace', 'Karta'),
-                                                                                 (20, 400.00, '2025-03-11', 'Oczekujace', 'Gotowka'),
-                                                                                 (21, 450.00, '2025-03-12', 'Oczekujace', 'Przelew');
+                                                                                 (6, 200.00, '2025-03-10', 'Oczekujace', 'Karta'),
+                                                                                 (7, 250.00, '2025-03-11', 'Oczekujace', 'Gotowka'),
+                                                                                 (8, 300.00, '2025-03-12', 'Oczekujace', 'Przelew'),
+                                                                                 (9, 350.00, '2025-03-10', 'Oczekujace', 'Karta'),
+                                                                                 (10, 400.00, '2025-03-11', 'Oczekujace', 'Gotowka'),
+                                                                                 (11, 450.00, '2025-03-12', 'Oczekujace', 'Przelew');
 
 -- procedura aktualizujaca status rezerwacji oraz automatyzacja jej
 DELIMITER $$
 
 CREATE PROCEDURE aktualizuj_statusy()
 BEGIN
-UPDATE Rezerwacje
-SET status = 'zakończona'
-WHERE data_zakonczenia < CURDATE()
-  AND status = 'W trakcie';
+    UPDATE Rezerwacje
+    SET status = 'zakończona'
+    WHERE data_zakonczenia < CURDATE()
+      AND status = 'W trakcie';
 END $$
 
 DELIMITER ;
@@ -385,14 +385,14 @@ CREATE TRIGGER aktualizuj_status_pojazdu
     FOR EACH ROW
 BEGIN
     IF NEW.status IN ('Zakonczona', 'Anulowana') THEN
-    UPDATE Pojazdy
-    SET status = 'Dostepny'
-    WHERE nr_rejestracyjny = NEW.nr_rejestracyjny;
+        UPDATE Pojazdy
+        SET status = 'Dostepny'
+        WHERE nr_rejestracyjny = NEW.nr_rejestracyjny;
     ELSEIF NEW.status = 'W trakcie' THEN
-    UPDATE Pojazdy
-    SET status = 'Wypozyczony'
-    WHERE nr_rejestracyjny = NEW.nr_rejestracyjny;
-END IF;
+        UPDATE Pojazdy
+        SET status = 'Wypozyczony'
+        WHERE nr_rejestracyjny = NEW.nr_rejestracyjny;
+    END IF;
 END $$
 
 DELIMITER ;
@@ -416,9 +416,9 @@ BEGIN
                              '_do_',
                              DATE_FORMAT(data_koncowa, '%Y_%m_%d'));
 
-SELECT alias_nazwa AS zakres_dochodu, SUM(kwota) AS dochod
-FROM Platnosci
-WHERE data_platnosci BETWEEN data_poczatkowa AND data_koncowa;
+    SELECT alias_nazwa AS zakres_dochodu, SUM(kwota) AS dochod
+    FROM Platnosci
+    WHERE data_platnosci BETWEEN data_poczatkowa AND data_koncowa;
 END $$
 
 DELIMITER ;
@@ -470,3 +470,5 @@ GROUP BY Pojazdy.typ
 ORDER BY srednia_dlugosc_wypozyczenia_w_dniach DESC ;
 
 SELECT * FROM raport_srednia_dlugosc_wypozyczenia;
+
+
